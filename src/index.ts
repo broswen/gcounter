@@ -1,18 +1,22 @@
-import {shardLayers, shardName, shardURL} from "./sharding/sharding";
+import {shardName, shardURL} from "./sharding/sharding";
 import {getCache} from "./cache/cache";
 import Toucan from "toucan-js";
-import {Pairs} from "./pair/pair";
 
-export { Shard } from "./shard/shard";
+export { Counter } from './counter/counter'
 
 export interface Config {
+	// how many durable objects to shard writes/reads to
 	shardCount: number
-	shardRatio: number
+	// how long to wait before flushing updates
+	flushDelay: number
+	// how long to wait before sending another update
+	syncDelay: number
 }
 
 export const DefaultConfig: Config = {
 	shardCount: 100,
-	shardRatio: 5
+	flushDelay: 5 * 1000,
+	syncDelay: 2 * 1000
 }
 
 export interface WorkerAnalyticsNamespace {
@@ -27,10 +31,9 @@ export interface DataPoint {
 
 export interface Env {
 	CONFIG: KVNamespace
-	PAIRS: KVNamespace
-	SHARDS: DurableObjectNamespace
-	SHARDS_DATA: WorkerAnalyticsNamespace
-	WORKERS_DATA: WorkerAnalyticsNamespace
+	COUNTER: DurableObjectNamespace
+	COUNTER_DATA: WorkerAnalyticsNamespace
+	WORKER_DATA: WorkerAnalyticsNamespace
 	SENTRY_DSN: string
 	environment: string
 }
@@ -68,20 +71,8 @@ export async function handler(
 		environment: env.environment
 	})
 	const config = await getConfig(env)
-	const layers = shardLayers(config.shardCount, config.shardRatio)
 	const url = new URL(request.url)
-	const dump = url.searchParams.get('dump')
 	const key = url.pathname.slice(1)
-
-	if (dump) {
-		const pairs: string = await env.PAIRS.get(MAIN_SHARD) ?? '{}'
-		return new Response(pairs, {
-			headers: {
-				'dump': 'true',
-				'Content-Type': 'application/json'
-			}
-		})
-	}
 
 	if (url.pathname === '/favicon.ico') {
 		return new Response('no favicon', {status: 404})
@@ -93,18 +84,14 @@ export async function handler(
 	//shards should try to receive traffic from nearby colos
 	const ip = request.headers.get('cf-connecting-ip') ?? ''
 	const k = key + ip
-	const shardId = await shardName(MAIN_SHARD, k, layers)
+	const shardId = await shardName(MAIN_SHARD, k, [config.shardCount])
 
 	const data = await request.text()
 
-	env.WORKERS_DATA.writeDataPoint({
-		blobs: [key, ip, request.method],
-		indexes: [key]
-	})
 
 	if (request.method === 'PUT') {
-		const id = env.SHARDS.idFromName(shardId)
-		const obj = env.SHARDS.get(id)
+		const id = env.COUNTER.idFromName(shardId)
+		const obj = env.COUNTER.get(id)
 		const req = new Request(shardURL(shardId, key), {method: 'PUT', body: data})
 		try {
 			return obj.fetch(req)
@@ -122,8 +109,8 @@ export async function handler(
 		let res = await cache.match(req)
 		//cache only works with workers behind custom domains
 		if (res === undefined) {
-			const id = env.SHARDS.idFromName(MAIN_SHARD)
-			const obj = env.SHARDS.get(id)
+			const id = env.COUNTER.idFromName(MAIN_SHARD)
+			const obj = env.COUNTER.get(id)
 			try {
 				res = await obj.fetch(req)
 			} catch (e) {

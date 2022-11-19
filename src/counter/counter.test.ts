@@ -1,67 +1,103 @@
-import {Counter, Counters, mergeCounter, mergeCounters} from "./counter";
+import {parseShardPath, Counter} from "./counter";
+import {DefaultConfig, getConfig} from "../index";
 
-describe('Counter', () => {
-    test('should merge counters properly', () => {
-        const a: Counter = {
-            'node1': 1,
-            'node2': 2
-        }
-        const b: Counter = {
-            'node1': 1,
-            'node2': 2,
-            'node3': 2
-        }
-        expect(mergeCounter(a, b)).toEqual({
-            'node1': 1,
-            'node2': 2,
-            'node3': 2
+describe('parseShardPath', function () {
+   test('should parse path', () => {
+       expect(parseShardPath('/id:3:2:1/a')).toEqual({
+           id: 'id',
+           shardId: 'id:3:2:1',
+           upperShardId: 'id:2:1',
+           key: 'a',
+           level: 4
+       })
+   })
+    test('should parse path without key', () => {
+       expect(parseShardPath('/id:3:2:1')).toEqual({
+           id: 'id',
+           shardId: 'id:3:2:1',
+           upperShardId: 'id:2:1',
+           key: '',
+           level: 4
+       })
+   })
+    test('main shard shouldnt have upper shard', () => {
+        expect(parseShardPath('/id/a')).toEqual({
+            id: 'id',
+            shardId: 'id',
+            upperShardId: '',
+            key: 'a',
+            level: 1
+        })
+        expect(parseShardPath('/shard')).toEqual({
+            id: 'shard',
+            shardId: 'shard',
+            upperShardId: '',
+            key: '',
+            level: 1
+        })
+        expect(parseShardPath('/shard:1')).toEqual({
+            id: 'shard',
+            shardId: 'shard:1',
+            upperShardId: 'shard',
+            key: '',
+            level: 2
         })
     })
-    test('should merge empty', () => {
-        const a: Counter = {
-            'node1': 1,
-            'node2': 2
-        }
-        const b: Counter = {
-        }
-        expect(mergeCounter(a, b)).toEqual({
-            'node1': 1,
-            'node2': 2,
-        })
+    test('should throw on bad path', () => {
+       expect(() => parseShardPath('/')).toThrow()
+   })
+});
+
+const env = getMiniflareBindings()
+
+describe('getConfig', () => {
+    test('should get default config', async () => {
+        expect(await getConfig(env)).toEqual(DefaultConfig)
     })
 })
 
-describe('Counters', function () {
-    test('should merge counters', () => {
-        const a: Counters = {
-           'key1': {
-               'node1': 1,
-               'node2': 3
-           },
-           'key2': {
-               'node1': 2,
-               'node2': 2
-           }
-        }
-        const b: Counters = {
-           'key1': {
-               'node1': 2,
-               'node2': 2
-           },
-           'key2': {
-               'node1': 1,
-               'node2': 3
-           }
-        }
-        expect(mergeCounters(a, b)).toEqual({
-            'key1': {
-                'node1': 2,
-                'node2': 3
-            },
-            'key2': {
-                'node1': 2,
-                'node2': 3
-            }
-        })
+describe('get', () => {
+    test('should return 405', async () => {
+        const id = env.COUNTER.newUniqueId()
+        const storage = await getMiniflareDurableObjectStorage(id)
+        const stub = env.COUNTER.get(id)
+        const res = await stub.fetch('https://example.com/a')
+        expect(res.status).toEqual(405)
     })
-});
+})
+
+describe('flush', () => {
+    test('schedule flush', async () => {
+        const id = env.COUNTER.newUniqueId()
+        const state = await getMiniflareDurableObjectState(id)
+        jest.useFakeTimers()
+        const shard = new Counter(state, env)
+        const mockFlush = jest.fn()
+
+        await shard.scheduleFlush(() => mockFlush())
+
+        jest.advanceTimersByTime(4000)
+        expect(shard.flushTimeout).not.toBeUndefined()
+
+        jest.advanceTimersByTime(2000)
+        expect(mockFlush).toHaveBeenCalled()
+    })
+    test('schedule and cancel flush', async () => {
+        const id = env.COUNTER.newUniqueId()
+        const state = await getMiniflareDurableObjectState(id)
+        jest.useFakeTimers()
+        const shard = new Counter(state, env)
+        const mockFlush = jest.fn()
+
+        await shard.scheduleFlush(() => mockFlush())
+
+        jest.advanceTimersByTime(4000)
+        expect(shard.flushTimeout).not.toBeUndefined()
+
+        shard.cancelFlush()
+        expect(shard.flushTimeout).toBeUndefined()
+
+        jest.advanceTimersByTime(2000)
+        expect(mockFlush).not.toHaveBeenCalled()
+    })
+})

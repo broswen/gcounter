@@ -4,14 +4,14 @@ compatibility_date = "2022-11-01"
 workers_dev = false
 
 kv_namespaces = [
-    { binding = "CONFIG", id = "", preview_id = ""},
+    { binding = "CONFIG", id = "ecce734a259347599c77bad0f55229c6", preview_id = "1cea2a38fc034ca98cd23091e2702bcb"},
 ]
-
-[vars]
-ENVIRONMENT = "production"
 
 [durable_objects]
 bindings = [{name = "COUNTER", class_name = "Counter"}]
+
+[vars]
+ENVIRONMENT = "production"
 
 [[unsafe.bindings]]
 type = "analytics_engine"
