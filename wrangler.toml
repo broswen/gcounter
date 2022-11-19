@@ -1,0 +1,28 @@
+name = "gcounter"
+main = "src/index.ts"
+compatibility_date = "2022-11-01"
+workers_dev = false
+
+kv_namespaces = [
+    { binding = "CONFIG", id = "", preview_id = ""},
+]
+
+[vars]
+ENVIRONMENT = "production"
+
+[durable_objects]
+bindings = [{name = "COUNTER", class_name = "Counter"}]
+
+[[unsafe.bindings]]
+type = "analytics_engine"
+name = "COUNTER_DATA"
+dataset = "GCOUNTER_COUNTER_DATA"
+
+[[unsafe.bindings]]
+type = "analytics_engine"
+name = "WORKER_DATA"
+dataset = "GCOUNTER_WORKER_DATA"
+
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_classes = ["Counter"]
