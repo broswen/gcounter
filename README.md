@@ -34,6 +34,7 @@ Increments the counter for `{key}`
 Sends local state to be merged with the remote state. Then receives the remote state and merges with local state
 
 ### TODO
+- [ ] add more tests
 - [ ] improve caching
 - [ ] decide what parameters to hash on 
 - [ ] multi layer sharding?
