@@ -68,7 +68,7 @@ describe('get', () => {
             }
         })
         const stub = env.COUNTER.get(id)
-        const res = await stub.fetch('https://gcounter.broswen.com/SHARD:1/key1')
+        const res = await stub.fetch(new Request('https://gcounter.broswen.com/SHARD:1/key1', {method: 'GET'}))
         expect(await res.text()).toEqual('2')
         expect(res.status).toEqual(200)
     })

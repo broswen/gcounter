@@ -1,6 +1,14 @@
-import {Gcounter, GCounters, incrementGCounter, mergeGCounter, mergeGCounters} from "./gcounter";
+import {
+    Gcounter,
+    GCounters,
+    getGCounter, getGCounters,
+    incrementGCounter,
+    incrementGCounters,
+    mergeGCounter,
+    mergeGCounters
+} from "./gcounter";
 
-describe('Counter', () => {
+describe('GCounter', () => {
     test('should merge counters properly', () => {
         const a: Gcounter = {
             'node1': 1,
@@ -31,7 +39,7 @@ describe('Counter', () => {
     })
 })
 
-describe('Counters', () => {
+describe('GCounters', () => {
     test('should merge counters', () => {
         const a: GCounters = {
            'key1': {
@@ -75,5 +83,36 @@ describe('increment', () => {
             'node1': 1,
             'node2': 1
         })
+    })
+    test('should increment empty with key', () => {
+        const a: GCounters = {}
+        incrementGCounters(a, 'key1', 'node1')
+        incrementGCounters(a, 'key1', 'node2')
+        expect(a).toStrictEqual({
+            'key1': {
+                'node1': 1,
+                'node2': 1
+            }
+        })
+    })
+})
+
+describe('get', () => {
+    test('should get counter value', () => {
+        const a: Gcounter = {
+            'node1': 1,
+            'node2': 2
+        }
+        expect(getGCounter(a)).toBe(3)
+    })
+    test('should get counters value', () => {
+        const a: GCounters = {
+            'key1': {
+                'node1': 1,
+                'node2': 2
+            }
+        }
+        expect(getGCounters(a, 'key1')).toBe(3)
+        expect(getGCounters(a, 'key2')).toBeUndefined()
     })
 })

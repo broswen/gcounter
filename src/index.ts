@@ -94,11 +94,10 @@ export async function handler(
 	if (!key.length) {
 		return new Response('invalid key', {status: 400})
 	}
-	//shards should try to receive traffic from nearby colos
-	// const ip = request.headers.get('cf-connecting-ip') ?? ''
-	// const k = key + ip
+	const ip = request.headers.get('cf-connecting-ip') ?? ''
+	const k = key + ip
 	// randomize based on time for testing
-	const k = new Date().getTime().toString()
+	// const k = new Date().getTime().toString()
 	const shardId = await shardName(MAIN_SHARD, k, [config.shardCount])
 
 
