@@ -79,8 +79,9 @@ export async function handler(
 	if (dump) {
 		const id = env.COUNTER.idFromName(dump)
 		const obj = env.COUNTER.get(id)
+		const url = shardURL(dump)
 		try {
-			return obj.fetch(request)
+			return obj.fetch(new Request(url + `?dump=true`))
 		} catch (e) {
 			sentry.captureException(e)
 		}

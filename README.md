@@ -37,3 +37,4 @@ Sends local state to be merged with the remote state. Then receives the remote s
 - [ ] improve caching
 - [ ] decide what parameters to hash on 
 - [ ] multi layer sharding?
+- [ ] add deletes with tombstone?

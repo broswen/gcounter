@@ -14,7 +14,7 @@
   "private": true,
   "scripts": {
     "start": "wrangler dev",
-    "deploy": "wrangler publish",
+    "publish": "wrangler publish",
     "build": "npx wrangler publish --dry-run --outdir=dist",
     "test": "npm run build && NODE_OPTIONS=--experimental-vm-modules npx jest"
   },
