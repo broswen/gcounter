@@ -1,5 +1,6 @@
 import {parseShardPath, Counter} from "./counter";
 import {DefaultConfig, getConfig} from "../index";
+import {GCounters} from "../gcounter/gcounter";
 
 describe('parseShardPath', function () {
    test('should parse path', () => {
@@ -57,12 +58,19 @@ describe('getConfig', () => {
 })
 
 describe('get', () => {
-    test('should return 405', async () => {
+    test('should return value', async () => {
         const id = env.COUNTER.newUniqueId()
         const storage = await getMiniflareDurableObjectStorage(id)
+        storage.put<GCounters>('gcounters', {
+            'key1': {
+                'id1': 1,
+                'id2': 1
+            }
+        })
         const stub = env.COUNTER.get(id)
-        const res = await stub.fetch('https://example.com/a')
-        expect(res.status).toEqual(405)
+        const res = await stub.fetch('https://gcounter.broswen.com/SHARD:1/key1')
+        expect(await res.text()).toEqual('2')
+        expect(res.status).toEqual(200)
     })
 })
 

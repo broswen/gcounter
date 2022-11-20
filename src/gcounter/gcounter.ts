@@ -42,7 +42,7 @@ export function mergeGCounters(a: GCounters, b: GCounters): GCounters {
     return c
 }
 
-export function increment(a: Gcounter, node: string) {
+export function incrementGCounter(a: Gcounter, node: string) {
     if (node in a) {
         a[node]++
     } else {
@@ -50,10 +50,24 @@ export function increment(a: Gcounter, node: string) {
     }
 }
 
-export function getValue(a: Gcounter): number {
+export function getGCounter(a: Gcounter): number {
     let sum = 0
     for (let v of Object.values(a)) {
         sum += v
     }
     return sum
+}
+
+export function incrementGCounters(a: GCounters, key: string, node: string) {
+    if (!(key in a)) {
+        a[key] = {}
+    }
+    incrementGCounter(a[key], node)
+}
+
+export function getGCounters(a: GCounters, key: string): number | undefined {
+    if (key in a) {
+        return getGCounter(a[key])
+    }
+    return undefined
 }

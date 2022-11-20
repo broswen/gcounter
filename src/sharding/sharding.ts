@@ -25,7 +25,7 @@ export async function shardName(id: string, key: string, layers: number[]): Prom
 }
 
 export function shardURL(shardName: string, key?: string | null): string {
-    let url = `https://shard.crystal.broswen.com/${shardName}`
+    let url = `https://gcounter.broswen.com/${shardName}`
     if (key) {
         url += '/' + key
     }

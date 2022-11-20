@@ -1,7 +1,7 @@
-import {Config, DataPoint, DefaultConfig, Env, getConfig} from "../index";
-import {shardURL} from "../sharding/sharding";
+import {Config, DefaultConfig, Env, getConfig} from "../index";
 import Toucan from "toucan-js";
-import {GCounters} from "../gcounter/gcounter";
+import {GCounters, getGCounters, incrementGCounters, mergeGCounters} from "../gcounter/gcounter";
+import {shardURL} from "../sharding/sharding";
 
 export interface PathDetails {
     level: number
@@ -52,10 +52,11 @@ export function parseShardPath(path: string): PathDetails {
 }
 
 export class Counter implements DurableObject {
+    id: string = ''
     state: DurableObjectState
     env: Env
     config: Config = DefaultConfig
-    lastPropagation: number = 0
+    lastSync: number = 0
     details: PathDetails | undefined
     sentry: Toucan
     gcounters: GCounters = {}
@@ -67,6 +68,7 @@ export class Counter implements DurableObject {
         this.state = state
         this.env = env
         this.state.blockConcurrencyWhile(async () => {
+            this.id = this.state.id.toString()
             this.gcounters = await this.state.storage?.get<GCounters>('gcounters') ?? {}
             this.config = await getConfig(this.env)
         })
@@ -79,17 +81,56 @@ export class Counter implements DurableObject {
     }
 
     async fetch(request: Request): Promise<Response> {
-        const url = new URL(request.url)
-        const details = parseShardPath(url.pathname)
-        this.details = details
+        console.log(request.url)
+        try {
+            const url = new URL(request.url)
+            this.details = parseShardPath(url.pathname)
 
-        this.sentry.setTags({
-            'shardId': this.details?.shardId,
-            'id': this.details?.id,
-            'objectId': this.state.id.toString()
-        })
+            this.sentry.setTags({
+                'shardId': this.details?.shardId,
+                'id': this.details?.id,
+                'objectId': this.state.id.toString()
+            })
 
-        return new Response('method not allowed', {status: 405})
+            const dump = url.searchParams.get('dump')
+            if (dump) {
+                return new Response(JSON.stringify(this.gcounters), {headers: {'Content-Type': 'application/json'}})
+            }
+
+            if (request.method === 'GET') {
+                if (this.details.key === '') {
+                    return new Response('invalid key', {status: 400})
+                }
+
+                await this.maybeSync(this.details.upperShardId)
+
+                const value = getGCounters(this.gcounters, this.details.key)
+                if (value === undefined) {
+                    return new Response('not found', {status: 404})
+                }
+                return new Response(JSON.stringify(value))
+            }
+
+            if (request.method === 'PUT') {
+                incrementGCounters(this.gcounters, this.details.key, this.details.shardId)
+                const value = getGCounters(this.gcounters, this.details.key)
+                this.state.storage.put<GCounters>('gcounters', this.gcounters)
+                this.maybeSync(this.details.upperShardId)
+                return new Response(JSON.stringify(value))
+            }
+
+            if (request.method === 'PATCH') {
+                const state = await request.json<GCounters>()
+                this.gcounters = mergeGCounters(this.gcounters, state)
+                this.state.storage.put<GCounters>('gcounters', this.gcounters)
+                return new Response(JSON.stringify(this.gcounters))
+            }
+
+            return new Response('method not allowed', {status: 405})
+        } catch (e) {
+            this.sentry.captureException(e)
+            return new Response(JSON.stringify(e), {status: 500})
+        }
     }
 
     // scheduleFlush schedules f() to run FLUSH_DELAY milliseconds later
@@ -103,5 +144,27 @@ export class Counter implements DurableObject {
             clearTimeout(this.flushTimeout)
             this.flushTimeout = undefined
         }
+    }
+
+    async maybeSync(name: string): Promise<void> {
+        this.cancelFlush()
+        if (new Date().getTime() - this.lastSync <= this.config.syncDelay) {
+            this.scheduleFlush(() => this.sync(name))
+            return
+        }
+        return this.sync(name)
+    }
+
+    async sync(name: string): Promise<void> {
+        const id = this.env.COUNTER.idFromName(name)
+        const obj = this.env.COUNTER.get(id)
+        const req = new Request(shardURL(name), {method: 'PATCH', body: JSON.stringify(this.gcounters)})
+        const resp = await obj.fetch(req)
+        if (resp.ok) {
+            this.lastSync = new Date().getTime()
+            const state = await resp.json<GCounters>()
+            this.gcounters = mergeGCounters(this.gcounters, state)
+        }
+        return
     }
 }

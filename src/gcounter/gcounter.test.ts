@@ -1,4 +1,4 @@
-import {Gcounter, GCounters, increment, mergeGCounter, mergeGCounters} from "./gcounter";
+import {Gcounter, GCounters, incrementGCounter, mergeGCounter, mergeGCounters} from "./gcounter";
 
 describe('Counter', () => {
     test('should merge counters properly', () => {
@@ -69,8 +69,8 @@ describe('Counters', () => {
 describe('increment', () => {
     test('should increment empty', () => {
         const a: Gcounter = {}
-        increment(a, 'node1')
-        increment(a, 'node2')
+        incrementGCounter(a, 'node1')
+        incrementGCounter(a, 'node2')
         expect(a).toStrictEqual({
             'node1': 1,
             'node2': 1

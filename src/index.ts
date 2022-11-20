@@ -14,7 +14,7 @@ export interface Config {
 }
 
 export const DefaultConfig: Config = {
-	shardCount: 100,
+	shardCount: 10,
 	flushDelay: 5 * 1000,
 	syncDelay: 2 * 1000
 }
@@ -70,9 +70,21 @@ export async function handler(
 		tracesSampleRate: 1.0,
 		environment: env.environment
 	})
+
 	const config = await getConfig(env)
 	const url = new URL(request.url)
 	const key = url.pathname.slice(1)
+
+	const dump = url.searchParams.get('dump')
+	if (dump) {
+		const id = env.COUNTER.idFromName(dump)
+		const obj = env.COUNTER.get(id)
+		try {
+			return obj.fetch(request)
+		} catch (e) {
+			sentry.captureException(e)
+		}
+	}
 
 	if (url.pathname === '/favicon.ico') {
 		return new Response('no favicon', {status: 404})
@@ -82,17 +94,17 @@ export async function handler(
 		return new Response('invalid key', {status: 400})
 	}
 	//shards should try to receive traffic from nearby colos
-	const ip = request.headers.get('cf-connecting-ip') ?? ''
-	const k = key + ip
+	// const ip = request.headers.get('cf-connecting-ip') ?? ''
+	// const k = key + ip
+	// randomize based on time for testing
+	const k = new Date().getTime().toString()
 	const shardId = await shardName(MAIN_SHARD, k, [config.shardCount])
-
-	const data = await request.text()
 
 
 	if (request.method === 'PUT') {
 		const id = env.COUNTER.idFromName(shardId)
 		const obj = env.COUNTER.get(id)
-		const req = new Request(shardURL(shardId, key), {method: 'PUT', body: data})
+		const req = new Request(shardURL(shardId, key), {method: 'PUT'})
 		try {
 			return obj.fetch(req)
 		} catch (e) {
@@ -102,14 +114,14 @@ export async function handler(
 	}
 
 	if (request.method === 'GET') {
-		const shardUrl = shardURL(MAIN_SHARD, key)
+		const shardUrl = shardURL(shardId, key)
 		const req = new Request(shardUrl, {method: 'GET'})
 
 		let cache = await getCache()
 		let res = await cache.match(req)
 		//cache only works with workers behind custom domains
 		if (res === undefined) {
-			const id = env.COUNTER.idFromName(MAIN_SHARD)
+			const id = env.COUNTER.idFromName(shardId)
 			const obj = env.COUNTER.get(id)
 			try {
 				res = await obj.fetch(req)
