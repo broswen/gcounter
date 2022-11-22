@@ -37,6 +37,7 @@ Sends local state to be merged with the remote state. Then receives the remote s
 - [ ] add more tests
 - [ ] upgrade wrangler to workerd
 - [ ] improve caching, use cf object in fetch
+- [ ] add analytics per counter
 - [ ] decide what parameters to hash on 
 - [ ] multi layer sharding?
     - [ ] track writes per second to scale?
