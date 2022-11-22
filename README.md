@@ -35,7 +35,9 @@ Sends local state to be merged with the remote state. Then receives the remote s
 
 ### TODO
 - [ ] add more tests
-- [ ] improve caching
+- [ ] upgrade wrangler to workerd
+- [ ] improve caching, use cf object in fetch
 - [ ] decide what parameters to hash on 
 - [ ] multi layer sharding?
+    - [ ] track writes per second to scale?
 - [ ] add deletes with tombstone?
